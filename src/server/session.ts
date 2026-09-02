@@ -15,7 +15,11 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 const BASE_URL = process.env.NEON_AUTH_BASE_URL;
 
-/** Better Auth publishes its JWKS at /jwt on the auth base URL. */
+/**
+ * Managed Better Auth publishes its public keys at
+ * `<auth base url>/.well-known/jwks.json` — the same `jwks_url` the Neon API reports for the
+ * project's auth integration.
+ */
 function jwksUrl(): URL {
   if (!BASE_URL) {
     throw new Error(
@@ -23,7 +27,7 @@ function jwksUrl(): URL {
     );
   }
   const base = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`;
-  return new URL('jwt', base);
+  return new URL('.well-known/jwks.json', base);
 }
 
 // createRemoteJWKSet caches the keys and refreshes them on rotation, so this is not a fetch per

@@ -1,0 +1,31 @@
+
+Applied db/schema.sql
+
+Row Level Security enabled on public.contacts: true
+
+Policies (4):
+  DELETE contacts_delete_own    roles={authenticated}
+         USING      (auth.user_id() = user_id)
+         WITH CHECK —
+  INSERT contacts_insert_own    roles={authenticated}
+         USING      —
+         WITH CHECK (auth.user_id() = user_id)
+  SELECT contacts_select_own    roles={authenticated}
+         USING      (auth.user_id() = user_id)
+         WITH CHECK —
+  UPDATE contacts_update_own    roles={authenticated}
+         USING      (auth.user_id() = user_id)
+         WITH CHECK (auth.user_id() = user_id)
+
+Columns:
+  id           uuid                       NOT NULL gen_random_uuid()
+  user_id      text                       NOT NULL auth.user_id()
+  name         text                       NOT NULL 
+  company      text                       NULL     
+  role         text                       NULL     
+  met_where    text                       NULL     
+  notes        text                       NULL     
+  priority     text                       NOT NULL 'medium'::text
+  priority_rank integer                    NULL     
+  created_at   timestamp with time zone   NOT NULL now()
+  updated_at   timestamp with time zone   NOT NULL now()
