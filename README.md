@@ -53,11 +53,11 @@ _(filled in after deployment — see [Grading evidence](#grading-evidence))_
 
 | Layer | Choice | Why |
 | --- | --- | --- |
-| Frontend | React 19 client components in Next.js 16 (App Router) | React for the interactive list and dialogs; the App Router lets the session be read on the server so a signed-out visitor never sees a flash of the contacts page. |
-| Backend | Next.js Route Handlers on the Node runtime | A real server layer that holds the validation and the token exchange, deployed as one unit with the frontend so there is no CORS or cross-site-cookie complexity. |
+| Frontend | React 19 client components in Next.js 16 (App Router) | React for the interactive list and dialogs. The browser holds a `@neondatabase/neon-js` client built with the two-URL object form, which handles auth and reads contacts from the Data API directly. |
+| Backend | Next.js Route Handlers on the Node runtime | A real server layer that verifies the caller's JWT and validates every write before it reaches the database, deployed alongside the frontend so there is no CORS setup to get wrong. |
 | Styling | Tailwind CSS v4 + shadcn/ui (Radix primitives) | An accessible component system — dialogs, selects, and tables that work with a keyboard and a screen reader — that I own in-repo and can restyle, rather than a black-box library. |
 | Database | Neon Postgres | Serverless Postgres, so RLS policies and CHECK constraints do the security and validation work in one place. |
-| Auth | Neon Managed Better Auth | Users, sessions, and OAuth config live in the same database as the data, so the JWT's `sub` claim can be read directly by RLS policies as `auth.user_id()`. |
+| Auth | Neon Managed Better Auth | Users and sessions live in the same database as the data, so the JWT's `sub` claim is readable by RLS policies as `auth.user_id()` without any syncing between systems. |
 | Data access | Neon Data API (PostgREST) via `@neondatabase/neon-js` | HTTP access to Postgres that carries the caller's JWT, so every query runs as that user and RLS applies. |
 | Validation | Zod on the server + Postgres CHECK constraints | Two independent layers: Zod produces the friendly message, the constraints are unbypassable. |
 | Tests | Vitest (unit + live RLS proof), Playwright (end-to-end evidence) | Fast offline tests a grader can run instantly, plus a live proof that the security boundary actually holds. |
@@ -66,70 +66,92 @@ _(filled in after deployment — see [Grading evidence](#grading-evidence))_
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ Browser — React client components (Tailwind + shadcn/ui)      │
-│                                                               │
-│  auth:  @neondatabase/auth/next  ──►  /api/auth/*             │
-│  data:  fetch('/api/contacts')                                │
-│                                                               │
-│  Holds no database URL, no API key, no token.                 │
-└───────────────────────────┬──────────────────────────────────┘
-                            │  same-origin HTTPS + HTTP-only session cookie
-                            ▼
-┌──────────────────────────────────────────────────────────────┐
-│ Next.js Route Handlers (Node) — the backend                   │
-│                                                               │
-│  1. auth.getSession()      no session        → 401            │
-│  2. Zod validation         bad input         → 400 + field    │
-│  3. auth.token()           mint the caller's JWT              │
-│  4. neon-js client bound to THAT user's JWT                   │
-│                                                               │
-│  No service key. No DATABASE_URL. Never queries as an admin.  │
-└───────────────────────────┬──────────────────────────────────┘
-                            │  Authorization: Bearer <user JWT>
-                            ▼
-┌──────────────────────────────────────────────────────────────┐
-│ Neon Data API (PostgREST)                                     │
-│  verifies the JWT, sets the `authenticated` role,             │
-│  exposes the `sub` claim as auth.user_id()                    │
-└───────────────────────────┬──────────────────────────────────┘
-                            ▼
-┌──────────────────────────────────────────────────────────────┐
-│ Neon Postgres — the trust boundary                            │
-│  RLS on contacts, 4 policies: auth.user_id() = user_id        │
-│  CHECK constraints: name non-blank, priority in (high|medium|low)
-└──────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│ Browser — React client components (Tailwind + shadcn/ui)              │
+│                                                                       │
+│   const neon = createClient({                                         │
+│     auth:    { url: NEXT_PUBLIC_NEON_AUTH_URL },                      │
+│     dataApi: { url: NEXT_PUBLIC_NEON_DATA_API_URL },                  │
+│   })                                                                  │
+│                                                                       │
+│   sign up / sign in / sign out ──► Managed Better Auth                │
+│   READ  neon.from('contacts')  ──► Data API, JWT attached             │
+│   WRITE fetch('/api/contacts') ──► this app's backend, JWT forwarded  │
+└──────────┬──────────────────────────────────────┬─────────────────────┘
+           │ reads                                │ writes
+           │ Authorization: Bearer <user JWT>     │ Authorization: Bearer <user JWT>
+           │                                      ▼
+           │            ┌──────────────────────────────────────────────┐
+           │            │ Next.js Route Handlers (Node) — the backend  │
+           │            │                                              │
+           │            │  1. verify the JWT against Better Auth's     │
+           │            │     JWKS (jose) — NEON_AUTH_BASE_URL,        │
+           │            │     server-only          bad token → 401     │
+           │            │  2. Zod validation       bad input → 400     │
+           │            │                          + per-field message │
+           │            │  3. write as that same user                  │
+           │            │                                              │
+           │            │  No service key. No DATABASE_URL. Never      │
+           │            │  queries as an admin.                        │
+           │            └──────────────────┬───────────────────────────┘
+           │                               │
+           ▼                               ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│ Neon Data API (PostgREST)                                             │
+│   verifies the JWT, sets the `authenticated` role,                    │
+│   exposes the `sub` claim as auth.user_id()                           │
+└──────────────────────────────┬────────────────────────────────────────┘
+                               ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│ Neon Postgres — the trust boundary                                    │
+│   RLS on contacts, 4 policies: auth.user_id() = user_id               │
+│   CHECK constraints: name non-blank, priority in (high|medium|low)    │
+└───────────────────────────────────────────────────────────────────────┘
 ```
+
+### Why reads and writes take different paths
+
+Reads go from the browser straight to the Data API. That is safe by construction: the query in
+[`src/lib/api.ts`](src/lib/api.ts) asks for *every* contact with no ownership filter, and Postgres
+returns only the caller's own rows. Exposing the Data API URL is the assignment's intent — "the
+frontend may use the public Neon Auth and Data API URLs; RLS must protect every exposed contacts
+row" — and it is exactly what `npm run test:rls` verifies.
+
+Writes take the longer path because they need something reads do not: **validation in trusted
+code, and error messages written for a person.** A raw constraint violation from Postgres is not
+something to show a user. So the browser sends the write to this app's backend, which verifies
+the caller's token, validates the payload with Zod, and only then performs the write — as that
+same user, so RLS still has the final say.
 
 ### Request flow, in words
 
 Take "edit a contact" as the example.
 
-1. The browser sends `PATCH /api/contacts/<id>` with a JSON body. It attaches no credentials of
-   its own — the signed, HTTP-only session cookie rides along automatically because the request
-   is same-origin.
-2. [`src/app/api/contacts/[id]/route.ts`](src/app/api/contacts/[id]/route.ts) calls
-   `getAuthedContext()`, which reads and verifies the session. No session means `401`.
+1. The browser calls `getAccessToken()`, which asks Better Auth for a short-lived JWT for the
+   current session, and sends `PATCH /api/contacts/<id>` with `Authorization: Bearer <jwt>`.
+2. [`src/server/session.ts`](src/server/session.ts) verifies that token's signature against
+   Managed Better Auth's public JWKS. The backend does not take the token on trust. An invalid or
+   expired token is a `401`. The verified `sub` claim is the user id.
 3. The body is parsed by `parseContactUpdate` from
    [`src/server/contact-schema.ts`](src/server/contact-schema.ts). A blank name or a priority
    outside the enum returns `400` with a per-field message. Any `user_id` in the payload is
-   silently stripped here — ownership is not something a client gets to state.
-4. [`src/server/data-api.ts`](src/server/data-api.ts) calls `auth.token()` to mint a short-lived
-   JWT for **this** user and builds a `neon-js` client bound to it.
-5. The client issues `update(...).eq('id', id)`. Notice there is no `.eq('user_id', ...)`
-   anywhere in the codebase: the handler does not filter by user at all.
-6. Postgres applies the `contacts_update_own` policy. If the row belongs to someone else it is
-   not in the statement's scope, so zero rows are updated and the handler answers `404`.
+   silently stripped — ownership is not something a client gets to state.
+4. [`src/server/data-api.ts`](src/server/data-api.ts) builds a `neon-js` client bound to that same
+   token and issues `update(...).eq('id', id)`. Note there is no `.eq('user_id', ...)` anywhere in
+   the codebase: the handler does not filter by user at all.
+5. Postgres applies the `contacts_update_own` policy. If the row belongs to someone else it is not
+   in the statement's scope, so zero rows are updated and the handler answers `404`.
 
-Step 5 is the design point. A missing ownership filter in application code is the classic way
-this kind of app leaks data. Here there is no ownership filter to forget, because the database is
-doing it.
+Step 4 is the design point. A missing ownership filter in application code is the classic way this
+kind of app leaks data. Here there is no ownership filter to forget, because the database is doing
+it — and the same is true of the read path, which is why exposing the Data API to the browser is
+not a compromise.
 
 ### Frontend / backend separation
 
 | | Location | Runs on |
 | --- | --- | --- |
-| Frontend | [`src/app/sign-in/`](src/app/sign-in/), [`src/app/contacts/`](src/app/contacts/), [`src/components/`](src/components/), [`src/lib/`](src/lib/) | The browser (plus server-rendered shells) |
+| Frontend | [`src/app/sign-in/`](src/app/sign-in/), [`src/app/contacts/`](src/app/contacts/), [`src/components/`](src/components/), [`src/lib/`](src/lib/) | The browser |
 | Backend | [`src/app/api/`](src/app/api/), [`src/server/`](src/server/) | Node, server-side only |
 
 Everything under `src/server/` imports `server-only`, so if a client component ever imported the
@@ -161,9 +183,16 @@ refreshes `updated_at` and pins `user_id` to its previous value on every update.
 ## Authentication and RLS ownership
 
 **Authentication.** Managed Better Auth stores users and sessions in a `neon_auth` schema in the
-same database. Signing in sets a signed, HTTP-only session cookie. The browser never holds a
-token it could leak. When the backend needs to talk to the database it calls `auth.token()` to
-exchange that cookie for a short-lived JWT scoped to that user.
+same database. The browser signs in through the neon-js client against the public Auth URL and
+holds the resulting session. For any database call — a direct read, or a write sent to this app's
+backend — the client obtains a short-lived JWT for that session, and the JWT's `sub` claim is what
+Postgres exposes as `auth.user_id()`.
+
+When a write reaches the backend, the backend re-verifies that JWT against Managed Better Auth's
+public JWKS before acting on it (see [`src/server/session.ts`](src/server/session.ts)). Postgres
+then verifies it a second time when the Data API forwards it. Two independent checks: the first so
+the backend knows who it is validating for, the second so that a bug in the first still cannot
+expose another user's rows.
 
 **The ownership rule, in one line:** a user may only see or change rows where
 `auth.user_id() = user_id`.
@@ -245,10 +274,10 @@ Names only — real values live in `.env.local`, which is gitignored. See
 
 | Variable | Exposed to the browser? | Used by |
 | --- | --- | --- |
-| `NEXT_PUBLIC_NEON_AUTH_URL` | Public URL, safe | `npm run test:rls` and the evidence scripts, which authenticate directly against Neon Auth to prove RLS holds without going through the app |
-| `NEXT_PUBLIC_NEON_DATA_API_URL` | Public URL, safe | The backend's Data API client, and the direct-access RLS proof |
-| `NEON_AUTH_BASE_URL` | **No — server only** | `src/server/auth.ts` |
-| `NEON_AUTH_COOKIE_SECRET` | **No — server only** | Signs the session cookie |
+| `NEXT_PUBLIC_NEON_AUTH_URL` | Yes — a public HTTPS endpoint, not a credential | The browser's neon-js client, for sign up / sign in / sign out |
+| `NEXT_PUBLIC_NEON_DATA_API_URL` | Yes — a public HTTPS endpoint, not a credential | The browser reads contacts through it; the backend writes through it. Every row behind it is protected by RLS. |
+| `NEON_AUTH_BASE_URL` | **No — server only** | The backend fetches Better Auth's public JWKS from here to verify a caller's JWT ([`src/server/session.ts`](src/server/session.ts)) |
+| `NEON_AUTH_COOKIE_SECRET` | **Not used** | This app manages no session cookie of its own — see the note in [`.env.example`](.env.example) |
 | `DATABASE_URL` | **No — never deployed** | `db/apply.mjs` only, run locally. It is not set in Vercel. |
 | `TEST_USER_A_EMAIL` / `_PASSWORD` | Local tooling only | Two-account privacy test |
 | `TEST_USER_B_EMAIL` / `_PASSWORD` | Local tooling only | Two-account privacy test |
