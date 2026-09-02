@@ -1,0 +1,32 @@
+ RUN  v4.1.11 C:/Users/andre/code/SecureNetworkingTracker
+ ✓ tests/contact-schema.test.ts > name is required > rejects an empty name with a clear message 6ms
+ ✓ tests/contact-schema.test.ts > name is required > rejects a whitespace-only name, so " " cannot masquerade as a name 1ms
+ ✓ tests/contact-schema.test.ts > name is required > rejects a missing name 1ms
+ ✓ tests/contact-schema.test.ts > name is required > rejects a name longer than 120 characters 0ms
+ ✓ tests/contact-schema.test.ts > name is required > trims surrounding whitespace from an otherwise valid name 0ms
+ ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > accepts high 0ms
+ ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > accepts medium 0ms
+ ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > accepts low 0ms
+ ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > rejects 'urgent' with a message naming the allowed values 0ms
+ ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > rejects 'HIGH' with a message naming the allowed values 0ms
+ ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > rejects 'critical' with a message naming the allowed values 0ms
+ ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > rejects '' with a message naming the allowed values 0ms
+ ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > rejects 'none' with a message naming the allowed values 0ms
+ ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > rejects a non-string priority 0ms
+ ✓ tests/contact-schema.test.ts > ownership cannot be set by the client > strips a user_id supplied in the payload 1ms
+ ✓ tests/contact-schema.test.ts > ownership cannot be set by the client > strips a user_id supplied on an edit 1ms
+ ✓ tests/contact-schema.test.ts > ownership cannot be set by the client > strips unknown fields generally 0ms
+ ✓ tests/contact-schema.test.ts > optional fields > accepts a contact with only a name and a priority 0ms
+ ✓ tests/contact-schema.test.ts > optional fields > normalises blank optional fields to null rather than empty strings 0ms
+ ✓ tests/contact-schema.test.ts > optional fields > rejects notes longer than 2000 characters 0ms
+ ✓ tests/contact-schema.test.ts > edits > accepts a partial update 1ms
+ ✓ tests/contact-schema.test.ts > edits > applies the same name rule to an edit 0ms
+ ✓ tests/contact-schema.test.ts > edits > rejects an empty edit 0ms
+ ✓ tests/contact-schema.test.ts > sort and filter inputs are whitelisted > defaults to newest first 1ms
+ ✓ tests/contact-schema.test.ts > sort and filter inputs are whitelisted > accepts a known sort column 0ms
+ ✓ tests/contact-schema.test.ts > sort and filter inputs are whitelisted > rejects an unknown sort column instead of passing it to the query builder 0ms
+ ✓ tests/contact-schema.test.ts > sort and filter inputs are whitelisted > rejects an unknown priority filter 0ms
+ Test Files  1 passed (1)
+      Tests  27 passed (27)
+   Start at  19:18:16
+   Duration  453ms (transform 51ms, setup 0ms, import 162ms, tests 16ms, environment 0ms)
