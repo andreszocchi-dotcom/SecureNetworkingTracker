@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
-import { authClient } from '@/lib/auth-client';
+import { neon } from '@/lib/neon-client';
 import { Button } from '@/components/ui/button';
 
 export function SignOutButton() {
@@ -18,9 +18,8 @@ export function SignOutButton() {
       data-testid="sign-out"
       onClick={async () => {
         setPending(true);
-        await authClient.signOut();
-        router.push('/sign-in');
-        router.refresh();
+        await neon.auth.signOut();
+        router.replace('/sign-in');
       }}
     >
       <LogOut className="size-4" />

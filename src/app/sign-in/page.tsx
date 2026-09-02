@@ -1,15 +1,18 @@
-import { redirect } from 'next/navigation';
-import { getSessionUser } from '@/server/auth';
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { AuthForm } from '@/components/auth-form';
+import { useSession } from '@/lib/use-session';
 
-export const dynamic = 'force-dynamic';
+export default function SignInPage() {
+  const session = useSession();
+  const router = useRouter();
 
-export const metadata = { title: 'Sign in · Networking Tracker' };
-
-export default async function SignInPage() {
   // Already signed in? Skip the form.
-  const user = await getSessionUser();
-  if (user) redirect('/contacts');
+  useEffect(() => {
+    if (session.status === 'signed-in') router.replace('/contacts');
+  }, [session.status, router]);
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-8 px-4 py-12">

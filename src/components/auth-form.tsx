@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * Sign in and sign up, sharing one form. Both call Managed Better Auth through this app's
- * /api/auth handler, which sets the signed HTTP-only session cookie.
+ * Sign in and sign up, sharing one form. Both call Managed Better Auth directly through the
+ * neon-js client, using the public Auth URL.
  */
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { authClient } from '@/lib/auth-client';
+import { neon } from '@/lib/neon-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,17 +31,15 @@ export function AuthForm() {
     try {
       const result =
         mode === 'sign-up'
-          ? await authClient.signUp.email({ email, password, name: name || email })
-          : await authClient.signIn.email({ email, password });
+          ? await neon.auth.signUp.email({ email, password, name: name || email })
+          : await neon.auth.signIn.email({ email, password });
 
       if (result.error) {
         setError(messageFor(result.error, mode));
         return;
       }
 
-      // Full navigation so the server re-reads the new session cookie.
-      router.push('/contacts');
-      router.refresh();
+      router.replace('/contacts');
     } catch {
       setError('Could not reach the sign-in service. Check your connection and try again.');
     } finally {

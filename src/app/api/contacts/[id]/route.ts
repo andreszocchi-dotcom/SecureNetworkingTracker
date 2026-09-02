@@ -1,12 +1,12 @@
 /**
- * Backend: single-contact routes.
+ * Backend: edit and delete a contact.
  *
- *   PATCH  /api/contacts/:id   edit a contact
- *   DELETE /api/contacts/:id   delete a contact
+ *   PATCH  /api/contacts/:id
+ *   DELETE /api/contacts/:id
  *
  * Both address the row by id alone. A user who guesses another user's contact id still changes
- * nothing, because the RLS USING clause removes that row from the statement's scope entirely —
- * the update matches zero rows and we answer 404.
+ * nothing: the RLS USING clause removes that row from the statement's scope, so the write matches
+ * zero rows and the handler answers 404.
  */
 import { NextResponse } from 'next/server';
 import { getAuthedContext } from '@/server/data-api';
@@ -20,7 +20,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: RouteContext) {
-  const ctx = await getAuthedContext();
+  const ctx = await getAuthedContext(request);
   if (!ctx.ok) return unauthorized();
 
   const { id } = await params;
@@ -41,8 +41,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   return NextResponse.json({ contact: data[0] });
 }
 
-export async function DELETE(_request: Request, { params }: RouteContext) {
-  const ctx = await getAuthedContext();
+export async function DELETE(request: Request, { params }: RouteContext) {
+  const ctx = await getAuthedContext(request);
   if (!ctx.ok) return unauthorized();
 
   const { id } = await params;

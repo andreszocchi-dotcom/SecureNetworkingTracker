@@ -74,7 +74,7 @@ export function ContactsView() {
     setLoadError(null);
 
     try {
-      const { contacts: rows } = await listContacts(next);
+      const rows = await listContacts(next);
       if (id !== requestId.current) return; // A newer request already won.
 
       setContacts(rows);
