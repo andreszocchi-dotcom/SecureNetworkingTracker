@@ -7,7 +7,7 @@ contact row is owned by exactly one user, and that ownership is enforced by Post
 Security rather than by application code, so one user's data stays invisible to another even if a
 request skips the app entirely and calls the public Data API directly.
 
-**Live app:** _(filled in after deployment)_
+**Live app:** https://secure-networking-tracker.vercel.app
 
 ---
 
@@ -47,7 +47,18 @@ request skips the app entirely and calls the public Data API directly.
 
 ## Screenshots
 
-_(filled in after deployment — see [Grading evidence](#grading-evidence))_
+Every image below was captured by an automated run against a live database
+(`npm run evidence`), not staged by hand.
+
+| Sign in | Your network |
+| --- | --- |
+| ![Sign in](docs/screenshots/01-sign-in.png) | ![Contact list](docs/screenshots/09-user-a-list.png) |
+
+| Add a contact, invalid input rejected | Mobile |
+| --- | --- |
+| ![Invalid input](docs/screenshots/03-invalid-input.png) | ![Mobile layout](docs/screenshots/10-mobile.png) |
+
+The full walkthrough is in [Grading evidence](#grading-evidence).
 
 ## Technology stack and why
 
@@ -328,12 +339,200 @@ Playwright drives the deployed app with both test accounts and saves the screens
 
 ## Grading evidence
 
-_(filled in after deployment)_
+### 1. Automated test output
+
+`npm test` — backend validation, offline, no configuration
+([full output](docs/test-output-unit.txt)):
+
+```
+ Test Files  1 passed (1)
+      Tests  27 passed (27)
+```
+
+`npm run test:rls` — the live two-account privacy proof
+([full output](docs/test-output-rls.txt)):
+
+```
+ ✓ User A owns their own row > A can read the contact A created
+ ✓ User B cannot read User A contacts > B listing every contact they can see does not include A row
+ ✓ User B cannot read User A contacts > B asking for A row by its exact id gets nothing back
+ ✓ User B cannot read User A contacts > every row B can see belongs to B
+ ✓ User B cannot change or delete User A contacts > B update of A row affects zero rows, and A row is untouched
+ ✓ User B cannot change or delete User A contacts > B delete of A row affects zero rows, and A row still exists
+ ✓ Ownership cannot be forged or reassigned > B cannot insert a row owned by A
+ ✓ Ownership cannot be forged or reassigned > A cannot hand their own row to B
+ ✓ Signed-out access > a caller with no token reads no contacts at all
+ ✓ The database rejects invalid data even without the backend > a blank name is refused by the CHECK constraint
+ ✓ The database rejects invalid data even without the backend > an invalid priority is refused by the CHECK constraint
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+```
+
+### 2. Sign in and sign out
+
+| Signed out | Signed in | Signed out again |
+| --- | --- | --- |
+| ![Sign in](docs/screenshots/01-sign-in.png) | ![Signed in](docs/screenshots/02-signed-in.png) | ![Signed out](docs/screenshots/13-signed-out.png) |
+
+Visiting `/contacts` while signed out lands on `/sign-in`. After signing in, the header shows the
+account's email. After signing out, the app returns to `/sign-in`.
+
+### 3. Create, edit, refresh, delete
+
+| Created | After a full page refresh |
+| --- | --- |
+| ![Created](docs/screenshots/04-contact-created.png) | ![After refresh](docs/screenshots/05-after-refresh.png) |
+
+| Edited (renamed, priority changed) | Deleted |
+| --- | --- |
+| ![Edited](docs/screenshots/06-contact-edited.png) | ![Deleted](docs/screenshots/12-contact-deleted.png) |
+
+The refresh screenshot is taken after `page.reload()`, so the row is being read back out of Neon
+Postgres rather than from client state.
+
+### 4. Sorting and filtering
+
+| Sorted by priority, high → low | Filtered to high only |
+| --- | --- |
+| ![Sorted](docs/screenshots/07-sorted-by-priority.png) | ![Filtered](docs/screenshots/08-filtered-high-only.png) |
+
+Both are done by the database, not in the browser: sorting uses the generated `priority_rank`
+column so the order is semantic rather than alphabetical, and filtering is a `WHERE` clause on the
+Data API query.
+
+### 5. Two accounts — User B cannot access User A's contacts
+
+| User A's list | User B, signed in at the same time |
+| --- | --- |
+| ![User A](docs/screenshots/09-user-a-list.png) | ![User B](docs/screenshots/11-user-b-cannot-see-a.png) |
+
+Both users' rows live in the same `contacts` table. B's list simply does not contain A's rows.
+
+The screenshots show it through the UI. `npm run test:rls` proves it at the level that actually
+matters, by skipping the app entirely and querying the public Data API directly as each user —
+including that B cannot update or delete A's row by its exact id, and that neither user can
+reassign a row to the other. See section 1.
+
+### 6. Invalid input failing safely
+
+![Invalid input](docs/screenshots/03-invalid-input.png)
+
+The form deliberately carries no `required` attribute, so the browser does not intercept the
+submit — the request reaches the backend, and the message shown is the one the server returned.
+The same holds from the command line:
+
+```console
+$ curl -X POST .../api/contacts -H "Authorization: Bearer $JWT" -d '{"name":"","priority":"high"}'
+{"error":"Name is required.","fields":{"name":"Name is required."}}          # HTTP 400
+
+$ curl -X POST .../api/contacts -H "Authorization: Bearer $JWT" -d '{"name":"Ada","priority":"urgent"}'
+{"error":"Priority must be one of: high, medium, low.","fields":{...}}       # HTTP 400
+
+$ curl -X POST .../api/contacts -d '{"name":"Ada","priority":"low"}'          # no token at all
+{"error":"You need to be signed in to do that."}                            # HTTP 401
+```
+
+### 7. Schema and RLS, as reported by the database itself
+
+Output of `npm run db:apply`, which re-reads `pg_policies` after applying the schema
+([full output](docs/rls-policies.txt)):
+
+```
+Row Level Security enabled on public.contacts: true
+
+Policies (4):
+  DELETE contacts_delete_own    roles={authenticated}
+         USING      (auth.user_id() = user_id)
+  INSERT contacts_insert_own    roles={authenticated}
+         WITH CHECK (auth.user_id() = user_id)
+  SELECT contacts_select_own    roles={authenticated}
+         USING      (auth.user_id() = user_id)
+  UPDATE contacts_update_own    roles={authenticated}
+         USING      (auth.user_id() = user_id)
+         WITH CHECK (auth.user_id() = user_id)
+
+Columns:
+  id            uuid                       NOT NULL gen_random_uuid()
+  user_id       text                       NOT NULL auth.user_id()
+  name          text                       NOT NULL
+  company       text                       NULL
+  role          text                       NULL
+  met_where     text                       NULL
+  notes         text                       NULL
+  priority      text                       NOT NULL 'medium'::text
+  priority_rank integer                    NULL
+  created_at    timestamp with time zone   NOT NULL now()
+  updated_at    timestamp with time zone   NOT NULL now()
+```
+
+The ownership rule in one line: **a user may only see or change rows where
+`auth.user_id() = user_id`.** `auth.user_id()` returns the `sub` claim of the JWT the Data API
+verified, so a caller cannot set it. The update policy's `WITH CHECK` is what stops a user from
+rewriting `user_id` to give a row away. Full explanation in
+[Authentication and RLS ownership](#authentication-and-rls-ownership).
+
+### 8. No committed secrets
+
+`.gitignore` excludes every `.env*` file except the placeholder template, and
+[`.env.example`](.env.example) contains placeholders only. To check:
+
+```bash
+git log -p | grep -iE "postgresql://|npg_|COOKIE_SECRET"   # no matches
+npm run build && grep -r "DATABASE_URL" .next/static/      # no matches
+```
+
+The two `NEXT_PUBLIC_` URLs *are* in the browser bundle, deliberately — they are HTTPS endpoints,
+not credentials, and RLS is what protects the rows behind them. `DATABASE_URL` is used only by
+`db/apply.mjs` on a developer machine, and is not set in Vercel at all.
 
 ## Deployment
 
-_(filled in after deployment)_
+Deployed with the Vercel CLI:
+
+```bash
+npm i -g vercel
+vercel link                       # creates / links the project
+
+# Public URLs. --type config tells Vercel these are intentionally public, not leaked secrets.
+vercel env add NEXT_PUBLIC_NEON_AUTH_URL     production --type config
+vercel env add NEXT_PUBLIC_NEON_DATA_API_URL production --type config
+
+# Server-only. Used to fetch Better Auth's public JWKS when verifying a caller's token.
+vercel env add NEON_AUTH_BASE_URL            production
+
+vercel deploy --prod
+```
+
+`DATABASE_URL` is deliberately **not** added to Vercel — nothing in the deployed app reads it.
+
+Then, in the Neon Console under **Auth → trusted domains**, add the deployed origin alongside
+`http://localhost:3000`. Managed Better Auth rejects sign-in from any other origin with
+`INVALID_ORIGIN`, so this step is required before authentication works in production.
+
+To verify a deployment end to end, including the two-account privacy check:
+
+```bash
+E2E_BASE_URL=https://secure-networking-tracker.vercel.app npm run evidence
+RLS_TEST_ORIGIN=https://secure-networking-tracker.vercel.app npm run test:rls
+```
 
 ## Known limitations and what I would improve next
 
-_(filled in after deployment)_
+- **No email verification or password reset.** Managed Better Auth supports both; sign-up
+  currently trusts whatever address is entered. For a real app this is the first thing I would
+  turn on.
+- **No pagination.** The list fetches every contact the user owns. That is fine for a personal
+  network of tens or hundreds of people, but it would need cursor pagination beyond that.
+- **Search is `ILIKE '%term%'`**, which cannot use an ordinary index. A `pg_trgm` index, or a
+  `tsvector` column for real full-text search, is the fix once the table grows.
+- **The RLS proof needs live credentials**, so it cannot run in CI as written. Pointing it at a
+  dedicated Neon branch with seeded test users would let it run on every push, which is where a
+  security test like that belongs.
+- **The session check is client-side**, so a signed-out visitor sees a brief spinner before being
+  redirected. Cookie-based server sessions would let the server redirect before rendering; the
+  trade-off is that it moves away from the two-URL browser client this project is built around.
+- **Every write refetches the whole list.** Simple and always correct, but optimistic local
+  updates would feel faster.
+- **`updated_at` is not surfaced in the UI.** The column exists and a trigger maintains it, but the
+  table only shows when a contact was added.
