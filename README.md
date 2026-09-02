@@ -47,8 +47,9 @@ request skips the app entirely and calls the public Data API directly.
 
 ## Screenshots
 
-Every image below was captured by an automated run against a live database
-(`npm run evidence`), not staged by hand.
+Every image below was captured by an automated run against the **deployed app** and a live
+database (`E2E_BASE_URL=https://secure-networking-tracker.vercel.app npm run evidence`), not
+staged by hand.
 
 | Sign in | Your network |
 | --- | --- |
@@ -339,6 +340,9 @@ Playwright drives the deployed app with both test accounts and saves the screens
 
 ## Grading evidence
 
+All of it was produced against the live deployment at
+<https://secure-networking-tracker.vercel.app>, backed by the real Neon database.
+
 ### 1. Automated test output
 
 `npm test` — backend validation, offline, no configuration
@@ -431,6 +435,21 @@ $ curl -X POST .../api/contacts -H "Authorization: Bearer $JWT" -d '{"name":"Ada
 
 $ curl -X POST .../api/contacts -d '{"name":"Ada","priority":"low"}'          # no token at all
 {"error":"You need to be signed in to do that."}                            # HTTP 401
+```
+
+Run in full against the deployed app, with two real accounts:
+
+```console
+1. no token          -> {"error":"You need to be signed in to do that."}                    [401]
+2. tampered token    -> {"error":"You need to be signed in to do that."}                    [401]
+3. empty name        -> {"error":"Name is required.","fields":{...}}                        [400]
+4. bad priority      -> {"error":"Priority must be one of: high, medium, low.", ...}        [400]
+5. valid create      -> created 36b0194c-…  owner 4c73770f-…   (the user_id I sent was
+                        "00000000-0000-0000-0000-000000000000" — it was stripped, and the
+                        row belongs to the token holder instead)
+6. B edits A's row   -> {"error":"That contact does not exist, or it is not yours."}        [404]
+7. B deletes A's row -> {"error":"That contact does not exist, or it is not yours."}        [404]
+8. A deletes own row ->                                                                     [204]
 ```
 
 ### 7. Schema and RLS, as reported by the database itself
