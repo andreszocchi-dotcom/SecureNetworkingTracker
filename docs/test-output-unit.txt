@@ -1,10 +1,10 @@
  RUN  v4.1.11 C:/Users/andre/code/SecureNetworkingTracker
- ✓ tests/contact-schema.test.ts > name is required > rejects an empty name with a clear message 4ms
- ✓ tests/contact-schema.test.ts > name is required > rejects a whitespace-only name, so " " cannot masquerade as a name 0ms
- ✓ tests/contact-schema.test.ts > name is required > rejects a missing name 0ms
+ ✓ tests/contact-schema.test.ts > name is required > rejects an empty name with a clear message 6ms
+ ✓ tests/contact-schema.test.ts > name is required > rejects a whitespace-only name, so " " cannot masquerade as a name 1ms
+ ✓ tests/contact-schema.test.ts > name is required > rejects a missing name 1ms
  ✓ tests/contact-schema.test.ts > name is required > rejects a name longer than 120 characters 0ms
  ✓ tests/contact-schema.test.ts > name is required > trims surrounding whitespace from an otherwise valid name 0ms
- ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > accepts high 1ms
+ ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > accepts high 0ms
  ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > accepts medium 0ms
  ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > accepts low 0ms
  ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > rejects 'urgent' with a message naming the allowed values 0ms
@@ -28,5 +28,5 @@
  ✓ tests/contact-schema.test.ts > sort and filter inputs are whitelisted > rejects an unknown priority filter 0ms
  Test Files  1 passed (1)
       Tests  27 passed (27)
-   Start at  18:37:31
-   Duration  563ms (transform 68ms, setup 0ms, import 192ms, tests 16ms, environment 0ms)
+   Start at  19:18:16
+   Duration  453ms (transform 51ms, setup 0ms, import 162ms, tests 16ms, environment 0ms)

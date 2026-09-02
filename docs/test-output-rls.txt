@@ -1,16 +1,16 @@
  RUN  v4.1.11 C:/Users/andre/code/SecureNetworkingTracker
- ✓ tests/rls-two-user.test.ts > User A owns their own row > A can read the contact A created 194ms
- ✓ tests/rls-two-user.test.ts > User B cannot read User A contacts > B listing every contact they can see does not include A row 61ms
- ✓ tests/rls-two-user.test.ts > User B cannot read User A contacts > B asking for A row by its exact id gets nothing back 64ms
- ✓ tests/rls-two-user.test.ts > User B cannot read User A contacts > every row B can see belongs to B 59ms
- ✓ tests/rls-two-user.test.ts > User B cannot change or delete User A contacts > B update of A row affects zero rows, and A row is untouched 124ms
- ✓ tests/rls-two-user.test.ts > User B cannot change or delete User A contacts > B delete of A row affects zero rows, and A row still exists 127ms
- ✓ tests/rls-two-user.test.ts > Ownership cannot be forged or reassigned > B cannot insert a row owned by A 72ms
- ✓ tests/rls-two-user.test.ts > Ownership cannot be forged or reassigned > A cannot hand their own row to B 139ms
+ ✓ tests/rls-two-user.test.ts > User A owns their own row > A can read the contact A created 263ms
+ ✓ tests/rls-two-user.test.ts > User B cannot read User A contacts > B listing every contact they can see does not include A row 81ms
+ ✓ tests/rls-two-user.test.ts > User B cannot read User A contacts > B asking for A row by its exact id gets nothing back 100ms
+ ✓ tests/rls-two-user.test.ts > User B cannot read User A contacts > every row B can see belongs to B 84ms
+ ✓ tests/rls-two-user.test.ts > User B cannot change or delete User A contacts > B update of A row affects zero rows, and A row is untouched 169ms
+ ✓ tests/rls-two-user.test.ts > User B cannot change or delete User A contacts > B delete of A row affects zero rows, and A row still exists 162ms
+ ✓ tests/rls-two-user.test.ts > Ownership cannot be forged or reassigned > B cannot insert a row owned by A 91ms
+ ✓ tests/rls-two-user.test.ts > Ownership cannot be forged or reassigned > A cannot hand their own row to B 156ms
  ✓ tests/rls-two-user.test.ts > Signed-out access > a caller with no token reads no contacts at all 7ms
- ✓ tests/rls-two-user.test.ts > The database rejects invalid data even without the backend > a blank name is refused by the CHECK constraint 61ms
- ✓ tests/rls-two-user.test.ts > The database rejects invalid data even without the backend > an invalid priority is refused by the CHECK constraint 71ms
+ ✓ tests/rls-two-user.test.ts > The database rejects invalid data even without the backend > a blank name is refused by the CHECK constraint 75ms
+ ✓ tests/rls-two-user.test.ts > The database rejects invalid data even without the backend > an invalid priority is refused by the CHECK constraint 76ms
  Test Files  1 passed (1)
       Tests  11 passed (11)
-   Start at  18:37:25
-   Duration  2.86s (transform 39ms, setup 0ms, import 408ms, tests 2.24s, environment 0ms)
+   Start at  19:18:09
+   Duration  3.89s (transform 73ms, setup 0ms, import 584ms, tests 3.00s, environment 0ms)

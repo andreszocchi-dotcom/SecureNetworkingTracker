@@ -43,6 +43,14 @@ type Props = {
   busyId: string | null;
 };
 
+/** Fixed widths keep the Actions column on screen instead of being pushed off by long text. */
+const COLUMN_WIDTHS: Record<SortColumn, string> = {
+  name: 'w-[26%]',
+  company: 'w-[16%]',
+  priority: 'w-[10%]',
+  created_at: 'w-[12%]',
+};
+
 const COLUMNS: { key: SortColumn; label: string }[] = [
   { key: 'name', label: 'Name' },
   { key: 'company', label: 'Company' },
@@ -63,11 +71,11 @@ export function ContactList({
     <>
       {/* Desktop / tablet */}
       <div className="hidden overflow-x-auto rounded-lg border md:block">
-        <Table>
+        <Table className="w-full table-fixed">
           <TableHeader>
             <TableRow>
               {COLUMNS.map((column) => (
-                <TableHead key={column.key} className={column.key === 'priority' ? 'w-32' : undefined}>
+                <TableHead key={column.key} className={COLUMN_WIDTHS[column.key]}>
                   <button
                     type="button"
                     onClick={() => onSortChange(column.key)}
@@ -80,29 +88,37 @@ export function ContactList({
                   </button>
                 </TableHead>
               ))}
-              <TableHead>Role</TableHead>
-              <TableHead>Where you met</TableHead>
-              <TableHead className="w-24 text-right">Actions</TableHead>
+              <TableHead className="hidden w-[16%] lg:table-cell">Role</TableHead>
+              <TableHead className="hidden w-[16%] lg:table-cell">Where you met</TableHead>
+              <TableHead className="w-[10%] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {contacts.map((contact) => (
               <TableRow key={contact.id} data-testid="contact-row">
                 <TableCell className="font-medium">
-                  <span data-testid="contact-name">{contact.name}</span>
+                  <span data-testid="contact-name" className="block truncate">
+                    {contact.name}
+                  </span>
                   {contact.notes ? (
-                    <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{contact.notes}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{contact.notes}</p>
                   ) : null}
                 </TableCell>
-                <TableCell className="text-muted-foreground">{contact.company ?? '—'}</TableCell>
+                <TableCell className="truncate text-muted-foreground">
+                  {contact.company ?? '—'}
+                </TableCell>
                 <TableCell>
                   <PriorityBadge priority={contact.priority} />
                 </TableCell>
                 <TableCell className="text-muted-foreground whitespace-nowrap">
                   {formatDate(contact.created_at)}
                 </TableCell>
-                <TableCell className="text-muted-foreground">{contact.role ?? '—'}</TableCell>
-                <TableCell className="text-muted-foreground">{contact.met_where ?? '—'}</TableCell>
+                <TableCell className="hidden truncate text-muted-foreground lg:table-cell">
+                  {contact.role ?? '—'}
+                </TableCell>
+                <TableCell className="hidden truncate text-muted-foreground lg:table-cell">
+                  {contact.met_where ?? '—'}
+                </TableCell>
                 <TableCell className="text-right">
                   <RowActions
                     contact={contact}
@@ -118,12 +134,12 @@ export function ContactList({
       </div>
 
       {/* Mobile */}
-      <ul className="grid gap-3 md:hidden">
+      <ul className="grid grid-cols-[minmax(0,1fr)] gap-3 md:hidden">
         {contacts.map((contact) => (
           <li
             key={contact.id}
             data-testid="contact-card"
-            className="rounded-lg border bg-card p-4 shadow-sm"
+            className="min-w-0 rounded-lg border bg-card p-4 shadow-sm"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -138,9 +154,9 @@ export function ContactList({
             </div>
 
             {contact.met_where ? (
-              <p className="mt-2 text-sm text-muted-foreground">Met at {contact.met_where}</p>
+              <p className="mt-2 text-sm break-words text-muted-foreground">Met at {contact.met_where}</p>
             ) : null}
-            {contact.notes ? <p className="mt-2 text-sm">{contact.notes}</p> : null}
+            {contact.notes ? <p className="mt-2 text-sm break-words">{contact.notes}</p> : null}
 
             <div className="mt-3 flex items-center justify-between">
               <span className="text-xs text-muted-foreground">

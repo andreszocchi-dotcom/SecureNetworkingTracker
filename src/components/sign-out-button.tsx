@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { neon } from '@/lib/neon-client';
 import { Button } from '@/components/ui/button';
 
 export function SignOutButton() {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   return (
@@ -19,7 +17,7 @@ export function SignOutButton() {
       onClick={async () => {
         setPending(true);
         await neon.auth.signOut();
-        router.replace('/sign-in');
+        window.location.assign('/sign-in');
       }}
     >
       <LogOut className="size-4" />

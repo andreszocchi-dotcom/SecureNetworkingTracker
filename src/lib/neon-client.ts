@@ -27,19 +27,31 @@ export const neon = createClient({
   },
 });
 
+const AUTH_URL = required(
+  'NEXT_PUBLIC_NEON_AUTH_URL',
+  process.env.NEXT_PUBLIC_NEON_AUTH_URL,
+).replace(/\/$/, '');
+
 /**
- * The JWT for the current session.
+ * A short-lived JWT for the current session.
  *
- * Reads go directly to the Data API and the client attaches this automatically. Writes go through
- * this app's backend instead, so that a server can validate them, and the backend needs the token
- * to (a) verify who is asking and (b) perform the write as that user so RLS still applies.
+ * Reads do not need this — the neon-js client mints and attaches its own token for Data API
+ * queries. Writes do: they go through this app's backend so a server can validate them, and the
+ * backend needs the token to verify who is asking and to perform the write as that user, so RLS
+ * still has the final say.
+ *
+ * The session itself lives in an HttpOnly cookie set by Managed Better Auth, which JavaScript
+ * cannot read — hence `credentials: 'include'` rather than reading a token out of storage. This
+ * is a cross-origin request, so the app's origin has to be one of Neon Auth's trusted domains.
  */
 export async function getAccessToken(): Promise<string | null> {
-  const { data, error } = await neon.auth.token();
-  if (error) return null;
+  try {
+    const response = await fetch(`${AUTH_URL}/token`, { credentials: 'include' });
+    if (!response.ok) return null;
 
-  const payload = data as Record<string, unknown> | null;
-  const token = payload?.token ?? payload?.accessToken ?? payload?.access_token ?? payload?.jwt;
-
-  return typeof token === 'string' && token.length > 0 ? token : null;
+    const { token } = (await response.json()) as { token?: string };
+    return token && token.length > 0 ? token : null;
+  } catch {
+    return null;
+  }
 }

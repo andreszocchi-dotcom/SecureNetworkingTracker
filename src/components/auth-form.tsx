@@ -5,7 +5,6 @@
  * neon-js client, using the public Auth URL.
  */
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { neon } from '@/lib/neon-client';
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,6 @@ import { Label } from '@/components/ui/label';
 type Mode = 'sign-in' | 'sign-up';
 
 export function AuthForm() {
-  const router = useRouter();
   const [mode, setMode] = useState<Mode>('sign-in');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -39,7 +37,9 @@ export function AuthForm() {
         return;
       }
 
-      router.replace('/contacts');
+      // A full navigation rather than a client-side push: it rebuilds the auth client from
+      // scratch so the freshly set session cookie is picked up cleanly.
+      window.location.assign('/contacts');
     } catch {
       setError('Could not reach the sign-in service. Check your connection and try again.');
     } finally {

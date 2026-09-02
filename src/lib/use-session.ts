@@ -28,15 +28,29 @@ export function useSession(): SessionState {
   useEffect(() => {
     let active = true;
 
-    void (async () => {
+    async function read(): Promise<SessionUser | null> {
       try {
         const { data } = await neon.auth.getSession();
-        const user = (data as { user?: SessionUser } | null)?.user;
-        if (!active) return;
-        setState(user ? { status: 'signed-in', user } : { status: 'signed-out' });
+        return (data as { user?: SessionUser } | null)?.user ?? null;
       } catch {
-        if (active) setState({ status: 'signed-out' });
+        return null;
       }
+    }
+
+    void (async () => {
+      let user = await read();
+
+      // Straight after sign-in the session cookie can still be in flight, and concluding
+      // "signed out" too early bounces the user back to /sign-in — which then sees a valid
+      // session and bounces them forward again. One retry settles it.
+      if (!user) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        if (!active) return;
+        user = await read();
+      }
+
+      if (!active) return;
+      setState(user ? { status: 'signed-in', user } : { status: 'signed-out' });
     })();
 
     return () => {
