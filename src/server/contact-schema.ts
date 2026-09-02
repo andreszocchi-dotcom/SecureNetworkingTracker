@@ -107,10 +107,16 @@ export const SORT_COLUMNS = ['name', 'company', 'priority', 'created_at'] as con
 export type SortColumn = (typeof SORT_COLUMNS)[number];
 
 export const listQuerySchema = z.object({
-  sort: z.enum(SORT_COLUMNS).default('created_at'),
-  direction: z.enum(['asc', 'desc']).default('desc'),
-  priority: z.enum(PRIORITIES).nullish(),
-  search: z.string().trim().max(120).nullish(),
+  sort: z
+    .enum(SORT_COLUMNS, { error: `Sort must be one of: ${SORT_COLUMNS.join(', ')}.` })
+    .default('created_at'),
+  direction: z
+    .enum(['asc', 'desc'], { error: 'Direction must be asc or desc.' })
+    .default('desc'),
+  priority: z
+    .enum(PRIORITIES, { error: `Priority must be one of: ${PRIORITIES.join(', ')}.` })
+    .nullish(),
+  search: z.string().trim().max(120, 'Search must be 120 characters or fewer.').nullish(),
 });
 
 export type ListQuery = z.infer<typeof listQuerySchema>;

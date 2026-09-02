@@ -1,8 +1,8 @@
  RUN  v4.1.11 C:/Users/andre/code/SecureNetworkingTracker
- ✓ tests/contact-schema.test.ts > name is required > rejects an empty name with a clear message 6ms
+ ✓ tests/contact-schema.test.ts > name is required > rejects an empty name with a clear message 7ms
  ✓ tests/contact-schema.test.ts > name is required > rejects a whitespace-only name, so " " cannot masquerade as a name 1ms
  ✓ tests/contact-schema.test.ts > name is required > rejects a missing name 1ms
- ✓ tests/contact-schema.test.ts > name is required > rejects a name longer than 120 characters 0ms
+ ✓ tests/contact-schema.test.ts > name is required > rejects a name longer than 120 characters 1ms
  ✓ tests/contact-schema.test.ts > name is required > trims surrounding whitespace from an otherwise valid name 0ms
  ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > accepts high 0ms
  ✓ tests/contact-schema.test.ts > priority accepts only high, medium, or low > accepts medium 0ms
@@ -22,11 +22,11 @@
  ✓ tests/contact-schema.test.ts > edits > accepts a partial update 1ms
  ✓ tests/contact-schema.test.ts > edits > applies the same name rule to an edit 0ms
  ✓ tests/contact-schema.test.ts > edits > rejects an empty edit 0ms
- ✓ tests/contact-schema.test.ts > sort and filter inputs are whitelisted > defaults to newest first 1ms
- ✓ tests/contact-schema.test.ts > sort and filter inputs are whitelisted > accepts a known sort column 0ms
+ ✓ tests/contact-schema.test.ts > sort and filter inputs are whitelisted > defaults to newest first 3ms
+ ✓ tests/contact-schema.test.ts > sort and filter inputs are whitelisted > accepts a known sort column 1ms
  ✓ tests/contact-schema.test.ts > sort and filter inputs are whitelisted > rejects an unknown sort column instead of passing it to the query builder 0ms
  ✓ tests/contact-schema.test.ts > sort and filter inputs are whitelisted > rejects an unknown priority filter 0ms
  Test Files  1 passed (1)
       Tests  27 passed (27)
-   Start at  19:18:16
-   Duration  453ms (transform 51ms, setup 0ms, import 162ms, tests 16ms, environment 0ms)
+   Start at  22:58:35
+   Duration  528ms (transform 68ms, setup 0ms, import 235ms, tests 26ms, environment 0ms)

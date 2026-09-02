@@ -44,14 +44,49 @@ const AUTH_URL = required(
  * cannot read — hence `credentials: 'include'` rather than reading a token out of storage. This
  * is a cross-origin request, so the app's origin has to be one of Neon Auth's trusted domains.
  */
+/**
+ * Cached until shortly before it expires. Every read and write needs a token, and a debounced
+ * search box would otherwise mint a fresh one on each keystroke. The 30-second margin means a
+ * token is never handed out so close to expiry that it dies in flight.
+ */
+let cached: { token: string; expiresAt: number } | null = null;
+
+function expiryOf(jwt: string): number {
+  try {
+    const segment = jwt.split('.')[1];
+    const padded = segment + '='.repeat((4 - (segment.length % 4)) % 4);
+    const claims = JSON.parse(atob(padded.replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof claims.exp === 'number' ? claims.exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function getAccessToken(): Promise<string | null> {
+  if (cached && Date.now() < cached.expiresAt - 30_000) return cached.token;
+
   try {
     const response = await fetch(`${AUTH_URL}/token`, { credentials: 'include' });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      cached = null;
+      return null;
+    }
 
     const { token } = (await response.json()) as { token?: string };
-    return token && token.length > 0 ? token : null;
+    if (!token) {
+      cached = null;
+      return null;
+    }
+
+    cached = { token, expiresAt: expiryOf(token) };
+    return token;
   } catch {
+    cached = null;
     return null;
   }
+}
+
+/** Called on sign-out so the next visitor cannot reuse the previous session's token. */
+export function clearCachedToken() {
+  cached = null;
 }

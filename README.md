@@ -87,34 +87,35 @@ The full walkthrough is in [Grading evidence](#grading-evidence).
 │     dataApi: { url: NEXT_PUBLIC_NEON_DATA_API_URL },                  │
 │   })                                                                  │
 │                                                                       │
-│   sign up / sign in / sign out ──► Managed Better Auth                │
-│   READ  neon.from('contacts')  ──► Data API, JWT attached             │
-│   WRITE fetch('/api/contacts') ──► this app's backend, JWT forwarded  │
-└──────────┬──────────────────────────────────────┬─────────────────────┘
-           │ reads                                │ writes
-           │ Authorization: Bearer <user JWT>     │ Authorization: Bearer <user JWT>
-           │                                      ▼
-           │            ┌──────────────────────────────────────────────┐
-           │            │ Next.js Route Handlers (Node) — the backend  │
-           │            │                                              │
-           │            │  1. verify the JWT against Better Auth's     │
-           │            │     JWKS (jose) — NEON_AUTH_BASE_URL,        │
-           │            │     server-only          bad token → 401     │
-           │            │  2. Zod validation       bad input → 400     │
-           │            │                          + per-field message │
-           │            │  3. write as that same user                  │
-           │            │                                              │
-           │            │  No service key. No DATABASE_URL. Never      │
-           │            │  queries as an admin.                        │
-           │            └──────────────────┬───────────────────────────┘
-           │                               │
-           ▼                               ▼
+│   sign in / sign up / sign out ──► Managed Better Auth (Google or     │
+│                                    email + password)                  │
+│   every read and write        ──► fetch('/api/contacts')              │
+│                                                                       │
+│   Holds no database credential — only a short-lived JWT for its own   │
+│   session, which it forwards to the backend.                          │
+└───────────────────────────┬───────────────────────────────────────────┘
+                            │  Authorization: Bearer <user JWT>
+                            ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│ Next.js Route Handlers (Node) — the backend                           │
+│                                                                       │
+│   1. verify the JWT against Better Auth's JWKS (jose),                │
+│      NEON_AUTH_BASE_URL is server-only        bad token → 401         │
+│   2. validate with Zod — body fields on writes, and the sort/filter   │
+│      query parameters on reads                bad input → 400         │
+│      + per-field message                                              │
+│   3. query the Data API as that same user                             │
+│                                                                       │
+│   No service key. No DATABASE_URL. Never queries as an admin.         │
+└───────────────────────────┬───────────────────────────────────────────┘
+                            │  Authorization: Bearer <user JWT>
+                            ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │ Neon Data API (PostgREST)                                             │
 │   verifies the JWT, sets the `authenticated` role,                    │
 │   exposes the `sub` claim as auth.user_id()                           │
-└──────────────────────────────┬────────────────────────────────────────┘
-                               ▼
+└───────────────────────────┬───────────────────────────────────────────┘
+                            ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │ Neon Postgres — the trust boundary                                    │
 │   RLS on contacts, 4 policies: auth.user_id() = user_id               │
@@ -122,26 +123,28 @@ The full walkthrough is in [Grading evidence](#grading-evidence).
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
-### Why reads and writes take different paths
+### Why everything goes through the backend
 
-Reads go from the browser straight to the Data API. That is safe by construction: the query in
-[`src/lib/api.ts`](src/lib/api.ts) asks for *every* contact with no ownership filter, and Postgres
-returns only the caller's own rows. Exposing the Data API URL is the assignment's intent — "the
-frontend may use the public Neon Auth and Data API URLs; RLS must protect every exposed contacts
-row" — and it is exactly what `npm run test:rls` verifies.
+The frontend *could* query the Data API directly — the assignment permits it, and Row Level
+Security would keep it safe. `npm run test:rls` proves exactly that, by skipping this app entirely
+and hitting the Data API as two different users.
 
-Writes take the longer path because they need something reads do not: **validation in trusted
-code, and error messages written for a person.** A raw constraint violation from Postgres is not
-something to show a user. So the browser sends the write to this app's backend, which verifies
-the caller's token, validates the payload with Zod, and only then performs the write — as that
-same user, so RLS still has the final say.
+It routes through the backend anyway, so that there is a single trusted layer every request
+crosses: one place that validates input, one place that turns database errors into messages
+written for people, and one obvious place to add logging or rate limiting later. That applies to
+reads as much as writes — `?sort=` and `?priority=` are caller-controlled strings, and they are
+whitelisted through an enum server-side before they ever reach the query builder.
+
+Two independent layers of defence, in other words, and neither is load-bearing on its own:
+application code validates, and the database enforces ownership.
 
 ### Request flow, in words
 
 Take "edit a contact" as the example.
 
 1. The browser calls `getAccessToken()`, which asks Better Auth for a short-lived JWT for the
-   current session, and sends `PATCH /api/contacts/<id>` with `Authorization: Bearer <jwt>`.
+   current session (cached in memory until just before it expires), and sends
+   `PATCH /api/contacts/<id>` with `Authorization: Bearer <jwt>`.
 2. [`src/server/session.ts`](src/server/session.ts) verifies that token's signature against
    Managed Better Auth's public JWKS. The backend does not take the token on trust. An invalid or
    expired token is a `401`. The verified `sub` claim is the user id.
@@ -157,8 +160,7 @@ Take "edit a contact" as the example.
 
 Step 4 is the design point. A missing ownership filter in application code is the classic way this
 kind of app leaks data. Here there is no ownership filter to forget, because the database is doing
-it — and the same is true of the read path, which is why exposing the Data API to the browser is
-not a compromise.
+it. Reads take the same route and rely on the same guarantee.
 
 ### Frontend / backend separation
 
@@ -167,8 +169,14 @@ not a compromise.
 | Frontend | [`src/app/sign-in/`](src/app/sign-in/), [`src/app/contacts/`](src/app/contacts/), [`src/components/`](src/components/), [`src/lib/`](src/lib/) | The browser |
 | Backend | [`src/app/api/`](src/app/api/), [`src/server/`](src/server/) | Node, server-side only |
 
-Everything under `src/server/` imports `server-only`, so if a client component ever imported the
-auth instance or the Data API client the build would fail rather than shipping it to the browser.
+The browser never talks to the database. Every read and every write is a request to
+`/api/contacts`, which is the only code that holds a Data API client.
+
+`src/server/data-api.ts`, `src/server/http.ts` and `src/server/session.ts` import `server-only`, so
+a client component that tried to pull in the Data API client or the JWKS verifier would fail the
+build rather than ship it to the browser. `src/server/contact-schema.ts` is deliberately left
+unguarded — it is pure Zod with no secrets and no I/O, so it stays shareable with the client if
+the form ever wants to pre-validate.
 
 ## Database schema
 

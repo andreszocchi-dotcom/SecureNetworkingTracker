@@ -1,15 +1,17 @@
 /**
  * How the browser reads and writes contacts.
  *
- * Reads go straight to the Neon Data API through the neon-js client, which attaches the signed-in
- * user's JWT. Row Level Security is what makes that safe to expose: the query below asks for
- * every contact, and Postgres returns only the caller's own.
+ * Everything goes through this app's own backend at /api/contacts. The browser holds no database
+ * credential; it forwards the short-lived JWT for its session, and the server verifies that token,
+ * validates the request, and performs the query as that user so RLS still applies.
  *
- * Writes go through this app's own backend instead, so a trusted server validates them first and
- * turns failures into messages meant for a person. The token is forwarded so the write still runs
- * as that user and RLS still applies.
+ * The browser could talk to the Data API directly — the assignment allows it, and RLS would keep
+ * it safe, which `npm run test:rls` proves by doing exactly that. Routing through the backend
+ * instead means every read and every write passes one trusted layer: one place that validates
+ * input, one place that maps database errors to messages meant for people, and one place to add
+ * logging or rate limiting later.
  */
-import { getAccessToken, neon } from './neon-client';
+import { getAccessToken } from './neon-client';
 import type { Contact, ContactDraft, ListOptions } from './types';
 
 export type FieldErrors = Record<string, string>;
@@ -26,51 +28,7 @@ export class ApiError extends Error {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Read — directly against the Data API
-// ---------------------------------------------------------------------------
-
-export async function listContacts(options: ListOptions): Promise<Contact[]> {
-  let query = neon.from('contacts').select('*');
-
-  if (options.priority !== 'all') {
-    query = query.eq('priority', options.priority);
-  }
-
-  const search = options.search.trim();
-  if (search) {
-    // PostgREST reads , . ( ) : as syntax inside an or() filter, so the term is quoted. The two
-    // characters that could break out of those quotes are dropped rather than escaped — a search
-    // box has no legitimate use for them, and removing them means no typed character can change
-    // the shape of the filter.
-    const safe = Array.from(search)
-      .filter((character) => character !== '"' && character !== String.fromCharCode(92))
-      .join('');
-    query = query.or(`name.ilike."*${safe}*",company.ilike."*${safe}*"`);
-  }
-
-  // Priority sorts by the generated rank column so the order is high, medium, low rather than
-  // alphabetical.
-  const column = options.sort === 'priority' ? 'priority_rank' : options.sort;
-
-  const { data, error } = await query
-    .order(column, { ascending: options.direction === 'asc' })
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    // A signed-out or expired session shows up here as an auth failure from the Data API.
-    const status = /jwt|token|unauthor|expired/i.test(error.message ?? '') ? 401 : 500;
-    throw new ApiError(status, 'Could not load your contacts.');
-  }
-
-  return (data ?? []) as Contact[];
-}
-
-// ---------------------------------------------------------------------------
-// Writes — through this app's backend, which validates before touching the database
-// ---------------------------------------------------------------------------
-
-async function write<T>(url: string, method: string, body?: unknown): Promise<T> {
+async function call<T>(url: string, init: RequestInit = {}): Promise<T> {
   const token = await getAccessToken();
   if (!token) {
     throw new ApiError(401, 'You need to be signed in to do that.');
@@ -79,12 +37,12 @@ async function write<T>(url: string, method: string, body?: unknown): Promise<T>
   let response: Response;
   try {
     response = await fetch(url, {
-      method,
+      ...init,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        ...(init.headers ?? {}),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(0, 'Could not reach the server. Check your connection and try again.');
@@ -105,14 +63,32 @@ async function write<T>(url: string, method: string, body?: unknown): Promise<T>
   return payload as T;
 }
 
+export async function listContacts(
+  options: ListOptions,
+  signal?: AbortSignal,
+): Promise<Contact[]> {
+  const params = new URLSearchParams({ sort: options.sort, direction: options.direction });
+  if (options.priority !== 'all') params.set('priority', options.priority);
+  if (options.search.trim()) params.set('search', options.search.trim());
+
+  const { contacts } = await call<{ contacts: Contact[] }>(`/api/contacts?${params}`, { signal });
+  return contacts;
+}
+
 export function createContact(draft: ContactDraft): Promise<{ contact: Contact }> {
-  return write<{ contact: Contact }>('/api/contacts', 'POST', draft);
+  return call<{ contact: Contact }>('/api/contacts', {
+    method: 'POST',
+    body: JSON.stringify(draft),
+  });
 }
 
 export function updateContact(id: string, draft: ContactDraft): Promise<{ contact: Contact }> {
-  return write<{ contact: Contact }>(`/api/contacts/${id}`, 'PATCH', draft);
+  return call<{ contact: Contact }>(`/api/contacts/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(draft),
+  });
 }
 
 export function deleteContact(id: string): Promise<void> {
-  return write<void>(`/api/contacts/${id}`, 'DELETE');
+  return call<void>(`/api/contacts/${id}`, { method: 'DELETE' });
 }

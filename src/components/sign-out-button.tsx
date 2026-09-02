@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { LogOut } from 'lucide-react';
-import { neon } from '@/lib/neon-client';
+import { clearCachedToken, neon } from '@/lib/neon-client';
 import { Button } from '@/components/ui/button';
 
 export function SignOutButton() {
@@ -17,6 +17,7 @@ export function SignOutButton() {
       onClick={async () => {
         setPending(true);
         await neon.auth.signOut();
+        clearCachedToken();
         window.location.assign('/sign-in');
       }}
     >
