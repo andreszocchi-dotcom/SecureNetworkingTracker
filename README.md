@@ -30,7 +30,8 @@ request skips the app entirely and calls the public Data API directly.
 
 ## Features
 
-- **Sign up, sign in, sign out** with email and password via Neon Managed Better Auth.
+- **Sign up, sign in, sign out** via Neon Managed Better Auth — with Google, or with an email
+  and password.
 - **Private contact list** — each user sees only their own contacts.
 - **Create, edit, delete** contacts with name, company, role, where we met, notes, and priority.
 - **Sort** by name, company, priority, or date added, ascending or descending. Priority sorts
@@ -69,7 +70,7 @@ The full walkthrough is in [Grading evidence](#grading-evidence).
 | Backend | Next.js Route Handlers on the Node runtime | A real server layer that verifies the caller's JWT and validates every write before it reaches the database, deployed alongside the frontend so there is no CORS setup to get wrong. |
 | Styling | Tailwind CSS v4 + shadcn/ui (Radix primitives) | An accessible component system — dialogs, selects, and tables that work with a keyboard and a screen reader — that I own in-repo and can restyle, rather than a black-box library. |
 | Database | Neon Postgres | Serverless Postgres, so RLS policies and CHECK constraints do the security and validation work in one place. |
-| Auth | Neon Managed Better Auth | Users and sessions live in the same database as the data, so the JWT's `sub` claim is readable by RLS policies as `auth.user_id()` without any syncing between systems. |
+| Auth | Neon Managed Better Auth (Google + email/password) | Users and sessions live in the same database as the data, so the JWT's `sub` claim is readable by RLS policies as `auth.user_id()` without any syncing between systems. Adding Google was one call — `signIn.social` — because the provider is managed for me. |
 | Data access | Neon Data API (PostgREST) via `@neondatabase/neon-js` | HTTP access to Postgres that carries the caller's JWT, so every query runs as that user and RLS applies. |
 | Validation | Zod on the server + Postgres CHECK constraints | Two independent layers: Zod produces the friendly message, the constraints are unbypassable. |
 | Tests | Vitest (unit + live RLS proof), Playwright (end-to-end evidence) | Fast offline tests a grader can run instantly, plus a live proof that the security boundary actually holds. |
@@ -196,7 +197,10 @@ refreshes `updated_at` and pins `user_id` to its previous value on every update.
 
 **Authentication.** Managed Better Auth stores users and sessions in a `neon_auth` schema in the
 same database. The browser signs in through the neon-js client against the public Auth URL and
-holds the resulting session. For any database call — a direct read, or a write sent to this app's
+holds the resulting session. Two methods are offered — `signIn.social({ provider: 'google' })`
+and `signIn.email({ email, password })` — and they converge on the same thing: a session whose
+JWT carries a `sub` claim. Everything downstream, including every RLS policy, is identical
+regardless of how the user signed in. For any database call — a direct read, or a write sent to this app's
 backend — the client obtains a short-lived JWT for that session, and the JWT's `sub` claim is what
 Postgres exposes as `auth.user_id()`.
 
@@ -382,6 +386,12 @@ All of it was produced against the live deployment at
 Visiting `/contacts` while signed out lands on `/sign-in`. After signing in, the header shows the
 account's email. After signing out, the app returns to `/sign-in`.
 
+Google sign-in hands off to Google's own consent flow, verified by an automated test
+(`e2e/google-check.spec.ts`) that clicks the button on the deployed app and asserts the browser
+ends up on `accounts.google.com`:
+
+![Google consent](docs/screenshots/14-google-consent.png)
+
 ### 3. Create, edit, refresh, delete
 
 | Created | After a full page refresh |
@@ -542,6 +552,11 @@ RLS_TEST_ORIGIN=https://secure-networking-tracker.vercel.app npm run test:rls
 
 ## Known limitations and what I would improve next
 
+- **Google sign-in uses Neon's shared OAuth credentials.** It works, but the consent screen reads
+  "to continue to neon.tech" rather than naming this app. Branding it means registering a Google
+  Cloud OAuth client, adding `{NEON_AUTH_BASE_URL}/callback/google` as an authorized redirect URI,
+  and putting the client ID and secret in the Neon Console — worth doing before anyone but me
+  uses it.
 - **No email verification or password reset.** Managed Better Auth supports both; sign-up
   currently trusts whatever address is entered. For a real app this is the first thing I would
   turn on.

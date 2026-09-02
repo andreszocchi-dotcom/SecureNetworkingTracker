@@ -20,6 +20,24 @@ export function AuthForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [googlePending, setGooglePending] = useState(false);
+
+  async function handleGoogle() {
+    setGooglePending(true);
+    setError(null);
+
+    try {
+      // Hands off to Google and comes back to /contacts. The origin has to be one of Managed
+      // Better Auth's trusted domains, the same allowlist that guards email sign-in.
+      await neon.auth.signIn.social({
+        provider: 'google',
+        callbackURL: `${window.location.origin}/contacts`,
+      });
+    } catch {
+      setError('Could not reach Google sign-in. Try again, or use an email and password.');
+      setGooglePending(false);
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -58,7 +76,25 @@ export function AuthForm() {
           : 'Takes a few seconds. No email verification needed.'}
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-6 grid gap-4" noValidate>
+      <Button
+        type="button"
+        variant="outline"
+        className="mt-6 w-full"
+        onClick={handleGoogle}
+        disabled={googlePending || pending}
+        data-testid="google-signin"
+      >
+        {googlePending ? <Loader2 className="size-4 animate-spin" /> : <GoogleMark />}
+        Continue with Google
+      </Button>
+
+      <div className="my-5 flex items-center gap-3">
+        <span className="h-px flex-1 bg-border" />
+        <span className="text-xs text-muted-foreground">or</span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      <form onSubmit={handleSubmit} className="grid gap-4" noValidate>
         {mode === 'sign-up' ? (
           <div className="grid gap-2">
             <Label htmlFor="name">Name</Label>
@@ -129,6 +165,30 @@ export function AuthForm() {
         </button>
       </p>
     </div>
+  );
+}
+
+/** Google's brand mark, inline so the page pulls nothing from a third-party host. */
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-4">
+      <path
+        fill="#4285F4"
+        d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.4 14.4a7.2 7.2 0 0 1 0-4.6V6.7H1.4a12 12 0 0 0 0 10.8l4-3.1Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.8c1.8 0 3.4.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.4 6.7l4 3.1C6.3 6.9 8.9 4.8 12 4.8Z"
+      />
+    </svg>
   );
 }
 
