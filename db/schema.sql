@@ -25,6 +25,12 @@ create table if not exists public.contacts (
   notes       text,
   priority    text not null default 'medium',
 
+  -- Lets the database sort by priority meaningfully. Ordering by the text column alone would
+  -- give high, low, medium (alphabetical); this gives high, medium, low.
+  priority_rank int generated always as (
+    case priority when 'high' then 0 when 'medium' then 1 else 2 end
+  ) stored,
+
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
 
