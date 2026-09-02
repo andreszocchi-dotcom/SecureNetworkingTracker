@@ -497,7 +497,11 @@ rewriting `user_id` to give a row away. Full explanation in
 [`.env.example`](.env.example) contains placeholders only. To check:
 
 ```bash
-git log -p | grep -iE "postgresql://|npg_|COOKIE_SECRET"   # no matches
+# The only hits are the placeholder lines in .env.example itself
+# (postgresql://user:password@ep-example-123456-pooler…), never a real value.
+git log -p --all | grep -iE "postgresql://|npg_|COOKIE_SECRET"
+
+# No server-only value reaches the browser bundle:
 npm run build && grep -r "DATABASE_URL" .next/static/      # no matches
 ```
 
